@@ -9,6 +9,7 @@ import type {
   AppConfig,
   AuditReport,
 } from "./utils/types";
+import type { LibrarySkillInfo } from "./library-core";
 import { loadConfig, saveConfig, getConfigPath } from "./config";
 import { scanAllSkills, searchSkills, sortSkills } from "./scanner";
 import {
@@ -18,6 +19,13 @@ import {
   getExistingTargets,
 } from "./uninstaller";
 import { detectDuplicates } from "./auditor";
+import { activateLibrarySkill, listLibrarySkills } from "./library";
+import { buildGhostSkills } from "./ghost-skills";
+import {
+  buildLinkOptions,
+  LinkModal,
+  type LinkTargetOption,
+} from "./views/link-modal";
 import { DashboardFooter, DashboardHeader } from "./views/dashboard";
 import { SkillListView } from "./views/skill-list";
 import { SkillDetailView } from "./views/skill-detail";
@@ -68,6 +76,8 @@ export function App({ initialConfig }: AppProps) {
   const [confirmTargets, setConfirmTargets] = useState<string[]>([]);
   const [confirmSkill, setConfirmSkill] = useState<SkillInfo | null>(null);
   const [auditReport, setAuditReport] = useState<AuditReport>(EMPTY_AUDIT);
+  const [librarySkills, setLibrarySkills] = useState<LibrarySkillInfo[]>([]);
+  const [linkSkill, setLinkSkill] = useState<SkillInfo | null>(null);
 
   // ── TUI state: loading, error, refresh feedback ─────────────────────────
   const [scanning, setScanning] = useState(false);
@@ -94,8 +104,12 @@ export function App({ initialConfig }: AppProps) {
     setScanning(true);
     setScanError(null);
     try {
-      const skills = await scanAllSkills(config, scope);
-      setAllSkills(skills);
+      const [skills, library] = await Promise.all([
+        scanAllSkills(config, scope),
+        listLibrarySkills().catch(() => [] as LibrarySkillInfo[]),
+      ]);
+      setLibrarySkills(library);
+      setAllSkills([...skills, ...buildGhostSkills(library, skills, scope)]);
       setAuditReport(detectDuplicates(skills));
       setHasScanned(true);
     } catch (err) {
@@ -162,6 +176,40 @@ export function App({ initialConfig }: AppProps) {
     },
     [allSkills, config, confirmSkill, refreshSkills],
   );
+
+  const showLink = useCallback(() => {
+    const skill = filteredSkills[cursor];
+    if (skill?.isGhost) {
+      setLinkSkill(skill);
+      setView("link");
+    }
+  }, [filteredSkills, cursor]);
+
+  const handleLinkSelect = useCallback(
+    async (option: LinkTargetOption) => {
+      if (!linkSkill) return;
+      try {
+        await activateLibrarySkill({
+          libraryPath: linkSkill.path,
+          targetDir: option.targetDir,
+          activationName: linkSkill.dirName,
+          force: false,
+        });
+        setScanError(null);
+      } catch (err) {
+        setScanError(err instanceof Error ? err.message : String(err));
+      }
+      setLinkSkill(null);
+      setView("dashboard");
+      await refreshSkills();
+    },
+    [linkSkill, refreshSkills],
+  );
+
+  const handleLinkCancel = useCallback(() => {
+    setLinkSkill(null);
+    setView("dashboard");
+  }, []);
 
   const handleConfigClose = useCallback(async (updatedConfig: AppConfig) => {
     await saveConfig(updatedConfig);
@@ -239,7 +287,12 @@ export function App({ initialConfig }: AppProps) {
       }
 
       if (key.escape) {
-        if (view === "help" || view === "detail" || view === "confirm") {
+        if (
+          view === "help" ||
+          view === "detail" ||
+          view === "confirm" ||
+          view === "link"
+        ) {
           setView("dashboard");
           return;
         }
@@ -287,6 +340,10 @@ export function App({ initialConfig }: AppProps) {
         if (input === "d") {
           const skill = filteredSkills[cursor];
           if (skill) showConfirm(skill);
+          return;
+        }
+        if (input === "l" && (scope === "project" || scope === "global")) {
+          showLink();
           return;
         }
         if (key.upArrow) {
@@ -420,6 +477,18 @@ export function App({ initialConfig }: AppProps) {
           report={auditReport}
           onRemove={handleDuplicatesRemove}
           onClose={() => setView("dashboard")}
+        />
+      )}
+      {view === "link" && linkSkill && (
+        <LinkModal
+          skillName={linkSkill.name}
+          scope={scope === "both" ? "project" : scope}
+          options={buildLinkOptions(
+            config.providers,
+            scope === "both" ? "project" : scope,
+          )}
+          onSelect={handleLinkSelect}
+          onCancel={handleLinkCancel}
         />
       )}
     </Box>
