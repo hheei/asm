@@ -68,7 +68,7 @@ describe("SkillListView row width", () => {
     const frame = lastFrame() ?? "";
     // The CJK row is not wrapped: exactly one line carries the Han name,
     // and the Hiragana description stays on its own continuation-free line.
-    const lines = frame.split("\n").filter((l) => !/^[\u001b\[]/.test(l) || true);
+    const lines = frame.split("\n");
     expect(lines.filter((l) => l.includes("中文"))).toHaveLength(1);
     expect(lines.filter((l) => l.includes("これは日本語の"))).toHaveLength(1);
     unmount();
