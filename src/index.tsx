@@ -86,9 +86,15 @@ export function App({ initialConfig }: AppProps) {
   const [hasScanned, setHasScanned] = useState(false);
 
   // ── Derive filtered list ────────────────────────────────────────────────
+  // Installed skills first, library ghosts grouped after them; each group
+  // keeps the user's chosen sort order.
   const filteredSkills = useMemo(() => {
     const searched = searchSkills(allSkills, searchQuery);
-    return sortSkills(searched, sort);
+    const sorted = sortSkills(searched, sort);
+    return [
+      ...sorted.filter((s) => !s.isGhost),
+      ...sorted.filter((s) => s.isGhost),
+    ];
   }, [allSkills, searchQuery, sort]);
 
   // Keep cursor in bounds
@@ -109,7 +115,10 @@ export function App({ initialConfig }: AppProps) {
         listLibrarySkills().catch(() => [] as LibrarySkillInfo[]),
       ]);
       setLibrarySkills(library);
-      setAllSkills([...skills, ...buildGhostSkills(library, skills, scope)]);
+      setAllSkills([
+        ...skills,
+        ...(await buildGhostSkills(library, skills, scope)),
+      ]);
       setAuditReport(detectDuplicates(skills));
       setHasScanned(true);
     } catch (err) {
