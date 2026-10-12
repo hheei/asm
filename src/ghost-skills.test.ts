@@ -97,17 +97,15 @@ describe("buildGhostSkills", () => {
   it("generates no ghosts in the both scope and none for an empty library", async () => {
     const library = [await makeLibrarySkill("alpha")];
     expect(await buildGhostSkills(library, [], "both")).toEqual([]);
-    expect(await buildGhostSkills([], [makeInstalled("beta")], "project")).toEqual([]);
+    expect(
+      await buildGhostSkills([], [makeInstalled("beta")], "project"),
+    ).toEqual([]);
   });
 
   it("degrades gracefully: unreadable SKILL.md is blank, missing dirs are skipped", async () => {
     const present = await makeLibrarySkill("alpha");
     const vanished = await makeLibrarySkill("beta", { missing: true });
-    const ghosts = await buildGhostSkills(
-      [present, vanished],
-      [],
-      "global",
-    );
+    const ghosts = await buildGhostSkills([present, vanished], [], "global");
     expect(ghosts.map((g) => g.dirName)).toEqual(["alpha"]);
     expect(ghosts.every((g) => g.scope === "global")).toBe(true);
   });
@@ -115,7 +113,11 @@ describe("buildGhostSkills", () => {
   it("shows blank display fields for a present entry whose SKILL.md cannot be read", async () => {
     const entry = await makeLibrarySkill("alpha");
     await rm(entry.libraryPath, { recursive: true, force: true });
-    const ghosts = await buildGhostSkills([{ ...entry, missing: false }], [], "project");
+    const ghosts = await buildGhostSkills(
+      [{ ...entry, missing: false }],
+      [],
+      "project",
+    );
     expect(ghosts.map((g) => g.dirName)).toEqual(["alpha"]);
     expect(ghosts[0].description).toBe("");
     expect(ghosts[0].tokenCount).toBeUndefined();

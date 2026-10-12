@@ -25,12 +25,9 @@ export async function buildGhostSkills(
   scope: Scope,
 ): Promise<SkillInfo[]> {
   if (scope === "both") return [];
-  const installedNames = new Set(
-    installed.map((s) => s.dirName.toLowerCase()),
-  );
+  const installedNames = new Set(installed.map((s) => s.dirName.toLowerCase()));
   const candidates = library.filter(
-    (lib) =>
-      !lib.missing && !installedNames.has(lib.dirName.toLowerCase()),
+    (lib) => !lib.missing && !installedNames.has(lib.dirName.toLowerCase()),
   );
 
   return Promise.all(
@@ -38,10 +35,7 @@ export async function buildGhostSkills(
       let frontmatter: Record<string, string> = {};
       let content = "";
       try {
-        content = await readFile(
-          join(lib.libraryPath, "SKILL.md"),
-          "utf-8",
-        );
+        content = await readFile(join(lib.libraryPath, "SKILL.md"), "utf-8");
         frontmatter = parseFrontmatter(content);
       } catch {
         // Unreadable SKILL.md — keep lock metadata, blank display fields.
@@ -60,9 +54,7 @@ export async function buildGhostSkills(
         modelInvocable: content
           ? resolveModelInvocable(frontmatter)
           : undefined,
-        userInvocable: content
-          ? resolveUserInvocable(frontmatter)
-          : undefined,
+        userInvocable: content ? resolveUserInvocable(frontmatter) : undefined,
         effort: frontmatter.effort || frontmatter["metadata.effort"],
         dirName: lib.dirName,
         path: lib.libraryPath,

@@ -838,13 +838,7 @@ export interface PublishResult {
 export type Scope = "global" | "project" | "both";
 export type SortBy = "name" | "version" | "location";
 export type ViewState =
-  | "dashboard"
-  | "detail"
-  | "confirm"
-  | "help"
-  | "config"
-  | "audit"
-  | "link";
+  "dashboard" | "detail" | "confirm" | "help" | "config" | "audit" | "link";
 
 // ─── Reference Tier Types (issue #422) ─────────────────────────────────────
 
