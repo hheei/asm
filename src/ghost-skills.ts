@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
 import type { LibrarySkillInfo } from "./library-core";
+import { poolAll } from "./updater-core";
 import {
   parseFrontmatter,
   resolveModelInvocable,
@@ -30,8 +31,11 @@ export async function buildGhostSkills(
     (lib) => !lib.missing && !installedNames.has(lib.dirName.toLowerCase()),
   );
 
-  return Promise.all(
-    candidates.map(async (lib): Promise<SkillInfo> => {
+  const GHOST_READ_CONCURRENCY = 16;
+  return poolAll(
+    candidates,
+    GHOST_READ_CONCURRENCY,
+    async (lib): Promise<SkillInfo> => {
       let frontmatter: Record<string, string> = {};
       let content = "";
       try {
@@ -69,6 +73,6 @@ export async function buildGhostSkills(
         tokenCount: content ? estimateTokenCount(content) : undefined,
         isGhost: true,
       };
-    }),
+    },
   );
 }

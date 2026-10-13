@@ -250,6 +250,14 @@ describe("DashboardFooter", () => {
     expect(frame).toContain("Updated!");
   });
 
+  it("shows link feedback when feedback is provided", () => {
+    const { lastFrame } = render(
+      <DashboardFooter feedback="Linked!" scanning={false} hasScanned={true} />,
+    );
+    const frame = lastFrame() ?? "";
+    expect(frame).toContain("Linked!");
+  });
+
   it("shows scanning indicator when scanning and not yet scanned", () => {
     const { lastFrame } = render(
       <DashboardFooter

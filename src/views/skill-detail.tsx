@@ -227,7 +227,9 @@ export function SkillDetailView({ skill }: SkillDetailProps) {
       )}
 
       <Box marginTop={1}>
-        <Text color={theme.fgDim}>Esc Back d Uninstall</Text>
+        <Text color={theme.fgDim}>
+          {skill.isGhost ? "Esc Back l Link" : "Esc Back d Uninstall"}
+        </Text>
       </Box>
     </Box>
   );

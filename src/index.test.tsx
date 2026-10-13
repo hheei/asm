@@ -107,6 +107,9 @@ const mocks = vi.hoisted(() => {
     })),
     executeRemoval: vi.fn(async () => {}),
     getExistingTargets: vi.fn(async () => ["/tmp/target"]),
+    listLibrarySkills: vi.fn(async () => []),
+    activateLibrarySkill: vi.fn(async () => {}),
+    buildGhostSkills: vi.fn(async (): Promise<SkillInfo[]> => []),
   };
 });
 
@@ -114,6 +117,7 @@ vi.mock("./scanner", () => ({
   scanAllSkills: mocks.scanAllSkills,
   searchSkills: mocks.searchSkills,
   sortSkills: mocks.sortSkills,
+  countFiles: vi.fn(async () => 1),
 }));
 
 vi.mock("./auditor", () => ({
@@ -124,6 +128,7 @@ vi.mock("./config", () => ({
   loadConfig: mocks.loadConfig,
   saveConfig: mocks.saveConfig,
   getConfigPath: mocks.getConfigPath,
+  resolveProviderPath: (p: string) => p,
 }));
 
 vi.mock("./uninstaller", () => ({
@@ -131,6 +136,15 @@ vi.mock("./uninstaller", () => ({
   buildRemovalPlan: mocks.buildRemovalPlan,
   executeRemoval: mocks.executeRemoval,
   getExistingTargets: mocks.getExistingTargets,
+}));
+
+vi.mock("./library", () => ({
+  listLibrarySkills: mocks.listLibrarySkills,
+  activateLibrarySkill: mocks.activateLibrarySkill,
+}));
+
+vi.mock("./ghost-skills", () => ({
+  buildGhostSkills: mocks.buildGhostSkills,
 }));
 
 // Mock ink's render so main()'s waitUntilExit resolves immediately instead of
@@ -183,6 +197,9 @@ describe("App container", () => {
     // Restore the default mock implementation so tests that override it
     // (mockReturnValue, mockRejectedValue) don't pollute subsequent tests.
     mocks.scanAllSkills.mockResolvedValue(mocks.SKILLS);
+    mocks.listLibrarySkills.mockResolvedValue([]);
+    mocks.activateLibrarySkill.mockResolvedValue(undefined);
+    mocks.buildGhostSkills.mockResolvedValue([]);
   });
 
   it("renders the dashboard with the scanned skill list on mount", async () => {
@@ -485,6 +502,334 @@ describe("App container", () => {
     expect(mocks.executeRemoval).toHaveBeenCalled();
     expect(lastFrame()).toContain("Navigate");
     unmount();
+  });
+
+  it("does not open confirm view or delete library copy when pressing 'd' on a ghost skill", async () => {
+    const GHOST_SKILL: SkillInfo = {
+      name: "ghost-skill",
+      version: "1.0.0",
+      description: "Ghost skill in library.",
+      creator: "tester",
+      license: "MIT",
+      compatibility: "",
+      allowedTools: [],
+      dirName: "ghost-skill",
+      path: "/library/ghost-skill",
+      originalPath: "/library/ghost-skill",
+      location: "library",
+      scope: "project",
+      provider: "library",
+      providerLabel: "Library",
+      isSymlink: false,
+      symlinkTarget: null,
+      realPath: "/library/ghost-skill",
+      isGhost: true,
+    };
+    mocks.buildGhostSkills.mockResolvedValue([GHOST_SKILL]);
+    const { stdin, lastFrame, unmount } = render(
+      <App
+        initialConfig={{
+          ...CONFIG,
+          preferences: { ...CONFIG.preferences, defaultScope: "project" },
+        }}
+      />,
+    );
+    await tick();
+    // Move cursor down to ghost skill (index 2)
+    stdin.write("j");
+    stdin.write("j");
+    await tick();
+    expect(lastFrame()).toContain("ghost-skill");
+    // Press 'd'
+    stdin.write("d");
+    await tick();
+    // Confirm view should NOT open
+    expect(lastFrame()).not.toContain("Uninstall:");
+    expect(mocks.buildFullRemovalPlan).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("does not open confirm view when pressing 'd' in detail view of a ghost skill", async () => {
+    const GHOST_SKILL: SkillInfo = {
+      name: "ghost-skill",
+      version: "1.0.0",
+      description: "Ghost skill in library.",
+      creator: "tester",
+      license: "MIT",
+      compatibility: "",
+      allowedTools: [],
+      dirName: "ghost-skill",
+      path: "/library/ghost-skill",
+      originalPath: "/library/ghost-skill",
+      location: "library",
+      scope: "project",
+      provider: "library",
+      providerLabel: "Library",
+      isSymlink: false,
+      symlinkTarget: null,
+      realPath: "/library/ghost-skill",
+      isGhost: true,
+    };
+    mocks.buildGhostSkills.mockResolvedValue([GHOST_SKILL]);
+    const { stdin, lastFrame, unmount } = render(
+      <App
+        initialConfig={{
+          ...CONFIG,
+          preferences: { ...CONFIG.preferences, defaultScope: "project" },
+        }}
+      />,
+    );
+    await tick();
+    // Move to ghost skill
+    stdin.write("j");
+    stdin.write("j");
+    await tick();
+    // Enter -> detail view
+    stdin.write("\r");
+    await tick();
+    expect(lastFrame()).toContain("ghost-skill");
+    // Press 'd' in detail view
+    stdin.write("d");
+    await tick();
+    // Confirm view should NOT open
+    expect(lastFrame()).not.toContain("Uninstall:");
+    expect(mocks.buildFullRemovalPlan).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("filters out ghost skills from DashboardHeader totals", async () => {
+    const GHOST_SKILL: SkillInfo = {
+      name: "ghost-skill",
+      version: "1.0.0",
+      description: "Ghost skill in library.",
+      creator: "tester",
+      license: "MIT",
+      compatibility: "",
+      allowedTools: [],
+      dirName: "ghost-skill",
+      path: "/library/ghost-skill",
+      originalPath: "/library/ghost-skill",
+      location: "library",
+      scope: "project",
+      provider: "library",
+      providerLabel: "Library",
+      isSymlink: false,
+      symlinkTarget: null,
+      realPath: "/library/ghost-skill",
+      isGhost: true,
+    };
+    mocks.buildGhostSkills.mockResolvedValue([GHOST_SKILL]);
+    const { lastFrame, unmount } = render(
+      <App
+        initialConfig={{
+          ...CONFIG,
+          preferences: { ...CONFIG.preferences, defaultScope: "project" },
+        }}
+      />,
+    );
+    await tick();
+    const frame = lastFrame() ?? "";
+    // Header should still report Total: 2 (installed only), not 3
+    expect(frame).toContain("Total: 2");
+    expect(frame).not.toContain("Total: 3");
+    unmount();
+  });
+
+  it("opens LinkModal on 'l' on a ghost skill, links it, and shows Linked feedback", async () => {
+    const GHOST_SKILL: SkillInfo = {
+      name: "ghost-skill",
+      version: "1.0.0",
+      description: "Ghost skill in library.",
+      creator: "tester",
+      license: "MIT",
+      compatibility: "",
+      allowedTools: [],
+      dirName: "ghost-skill",
+      path: "/library/ghost-skill",
+      originalPath: "/library/ghost-skill",
+      location: "library",
+      scope: "project",
+      provider: "library",
+      providerLabel: "Library",
+      isSymlink: false,
+      symlinkTarget: null,
+      realPath: "/library/ghost-skill",
+      isGhost: true,
+    };
+    mocks.buildGhostSkills.mockResolvedValue([GHOST_SKILL]);
+    const { stdin, lastFrame, unmount } = render(
+      <App
+        initialConfig={{
+          ...CONFIG,
+          preferences: { ...CONFIG.preferences, defaultScope: "project" },
+        }}
+      />,
+    );
+    await tick();
+    // Move to ghost-skill
+    stdin.write("j");
+    stdin.write("j");
+    await tick();
+    // Press 'l' -> open link modal
+    stdin.write("l");
+    await expectFrame(lastFrame, "Link to Project: ghost-skill");
+    // Press Enter to link to default first option
+    stdin.write("\r");
+    await act(async () => {
+      await tick();
+      await tick();
+    });
+    expect(mocks.activateLibrarySkill).toHaveBeenCalledWith({
+      libraryPath: "/library/ghost-skill",
+      targetDir: "/p/claude",
+      activationName: "ghost-skill",
+      force: false,
+    });
+    const frame = lastFrame() ?? "";
+    expect(frame).toContain("Linked!");
+    unmount();
+  });
+
+  it("shows Link failed error panel when activateLibrarySkill rejects", async () => {
+    const GHOST_SKILL: SkillInfo = {
+      name: "ghost-skill",
+      version: "1.0.0",
+      description: "Ghost skill in library.",
+      creator: "tester",
+      license: "MIT",
+      compatibility: "",
+      allowedTools: [],
+      dirName: "ghost-skill",
+      path: "/library/ghost-skill",
+      originalPath: "/library/ghost-skill",
+      location: "library",
+      scope: "project",
+      provider: "library",
+      providerLabel: "Library",
+      isSymlink: false,
+      symlinkTarget: null,
+      realPath: "/library/ghost-skill",
+      isGhost: true,
+    };
+    mocks.buildGhostSkills.mockResolvedValue([GHOST_SKILL]);
+    mocks.activateLibrarySkill.mockRejectedValue(
+      new Error("symlink collision"),
+    );
+    const { stdin, lastFrame, unmount } = render(
+      <App
+        initialConfig={{
+          ...CONFIG,
+          preferences: { ...CONFIG.preferences, defaultScope: "project" },
+        }}
+      />,
+    );
+    await tick();
+    // Move to ghost-skill
+    stdin.write("j");
+    stdin.write("j");
+    await tick();
+    // Press 'l' -> open link modal
+    stdin.write("l");
+    await expectFrame(lastFrame, "Link to Project: ghost-skill");
+    // Press Enter to select option
+    stdin.write("\r");
+    await expectFrame(lastFrame, "Link failed");
+    expect(lastFrame()).toContain("symlink collision");
+    unmount();
+  });
+
+  it("resets audit report to empty when scanAllSkills rejects", async () => {
+    mocks.detectDuplicates.mockReturnValue({
+      scannedAt: "",
+      totalSkills: 1,
+      duplicateGroups: [
+        {
+          key: "dupe",
+          reason: "same-dirName",
+          instances: [],
+        },
+      ],
+      totalDuplicateInstances: 2,
+    });
+    mocks.scanAllSkills.mockImplementation(() =>
+      Promise.reject(new Error("scan disaster")),
+    );
+    const { lastFrame, unmount } = render(<App initialConfig={CONFIG} />);
+    await act(async () => {
+      await tick();
+      await tick();
+      await tick();
+    });
+    const frame = lastFrame() ?? "";
+    expect(frame).toContain("Scan failed");
+    expect(frame).toContain("Dupes:   │");
+    unmount();
+  });
+
+  it("safely handles unmount while activateLibrarySkill is pending", async () => {
+    const ghost: SkillInfo = {
+      name: "ghost-skill",
+      version: "1.0.0",
+      description: "Ghost skill in library.",
+      creator: "tester",
+      license: "MIT",
+      compatibility: "",
+      allowedTools: [],
+      dirName: "ghost-skill",
+      path: "/library/ghost-skill",
+      originalPath: "/library/ghost-skill",
+      location: "library",
+      scope: "project",
+      provider: "library",
+      providerLabel: "Library",
+      isSymlink: false,
+      symlinkTarget: null,
+      realPath: "/library/ghost-skill",
+      isGhost: true,
+    };
+    mocks.buildGhostSkills.mockResolvedValue([ghost]);
+
+    let resolveActivation!: () => void;
+    mocks.activateLibrarySkill.mockImplementation(
+      () =>
+        new Promise<void>((res) => {
+          resolveActivation = res;
+        }),
+    );
+
+    const { stdin, lastFrame, unmount } = render(
+      <App
+        initialConfig={{
+          ...CONFIG,
+          preferences: { ...CONFIG.preferences, defaultScope: "project" },
+        }}
+      />,
+    );
+    await act(async () => {
+      await tick();
+      await tick();
+    });
+
+    // Move down to ghost-skill (row 3)
+    stdin.write("j");
+    stdin.write("j");
+    await tick();
+    stdin.write("l");
+    await expectFrame(lastFrame, "Link to Project: ghost-skill");
+    stdin.write("\r");
+    await tick();
+
+    // Unmount before activation finishes
+    unmount();
+
+    const scanCallsBefore = mocks.scanAllSkills.mock.calls.length;
+    // Now resolve activation — should not throw or schedule post-unmount timer/rescan
+    resolveActivation();
+    await act(async () => {
+      await tick();
+      await tick();
+    });
+    expect(mocks.scanAllSkills).toHaveBeenCalledTimes(scanCallsBefore);
   });
 });
 

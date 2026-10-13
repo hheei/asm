@@ -1478,4 +1478,23 @@ describe("buildFullRemovalPlan AGENTS.md filtering", () => {
     );
     expect(plan.agentsBlocks.some((b) => b.file.includes(".codex"))).toBe(true);
   });
+
+  it("never includes ghost skills in removal plans to protect library copies", () => {
+    const config = makeConfig();
+    const ghostSkill = makeSkill({
+      dirName: "ghost-skill",
+      originalPath: "/library/ghost-skill",
+      isGhost: true,
+    });
+
+    const singlePlan = buildRemovalPlan(ghostSkill, config);
+    expect(singlePlan.directories).toHaveLength(0);
+    expect(singlePlan.ruleFiles).toHaveLength(0);
+    expect(singlePlan.agentsBlocks).toHaveLength(0);
+
+    const fullPlan = buildFullRemovalPlan("ghost-skill", [ghostSkill], config);
+    expect(fullPlan.directories).toHaveLength(0);
+    expect(fullPlan.ruleFiles).toHaveLength(0);
+    expect(fullPlan.agentsBlocks).toHaveLength(0);
+  });
 });

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Box, Text } from "ink";
 import { TextInput } from "@inkjs/ui";
 import { theme } from "../utils/colors";
@@ -41,12 +41,30 @@ export function DashboardHeader({
   onSearchChange,
   onSearchSubmit,
 }: DashboardHeaderProps) {
-  const total = skills.length;
-  const unique = new Set(skills.map((s) => s.dirName)).size;
-  const globalCount = skills.filter((s) => s.scope === "global").length;
-  const projectCount = skills.filter((s) => s.scope === "project").length;
-  const symlinks = skills.filter((s) => s.isSymlink).length;
-  const providers = new Set(skills.map((s) => s.provider)).size;
+  const stats = useMemo(() => {
+    const uniqueNames = new Set<string>();
+    const providerNames = new Set<string>();
+    let globalCount = 0;
+    let projectCount = 0;
+    let symlinks = 0;
+
+    for (const s of skills) {
+      uniqueNames.add(s.dirName);
+      providerNames.add(s.provider);
+      if (s.scope === "global") globalCount++;
+      else if (s.scope === "project") projectCount++;
+      if (s.isSymlink) symlinks++;
+    }
+
+    return {
+      total: skills.length,
+      unique: uniqueNames.size,
+      globalCount,
+      projectCount,
+      symlinks,
+      providers: providerNames.size,
+    };
+  }, [skills]);
 
   const scopeDesc = buildScopeDescription(config);
 
@@ -66,12 +84,12 @@ export function DashboardHeader({
         gap={3}
       >
         <Text color={theme.fg}>
-          Total: {total} ({unique} unique)
+          Total: {stats.total} ({stats.unique} unique)
         </Text>
-        <Text color={theme.cyan}>Global: {globalCount}</Text>
-        <Text color={theme.green}>Project: {projectCount}</Text>
-        <Text color={theme.yellow}>Symlinks: {symlinks}</Text>
-        <Text color={theme.accentAlt}>Tools: {providers}</Text>
+        <Text color={theme.cyan}>Global: {stats.globalCount}</Text>
+        <Text color={theme.green}>Project: {stats.projectCount}</Text>
+        <Text color={theme.yellow}>Symlinks: {stats.symlinks}</Text>
+        <Text color={theme.accentAlt}>Tools: {stats.providers}</Text>
         <Text color={theme.orange}>Dupes: {duplicateCount}</Text>
         <Text color={theme.border}>│</Text>
         <Text color={theme.fgDim}>{buildSortLabel(sort)}</Text>
@@ -122,17 +140,27 @@ function ScopeTab({ label, active }: { label: string; active: boolean }) {
 }
 
 export interface DashboardFooterProps {
-  refreshFeedback: boolean;
+  feedback?: string | null;
+  refreshFeedback?: boolean;
+  linkFeedback?: boolean;
   scanning: boolean;
   hasScanned: boolean;
 }
 
 export function DashboardFooter({
+  feedback,
   refreshFeedback,
+  linkFeedback,
   scanning,
   hasScanned,
 }: DashboardFooterProps) {
-  const feedback = refreshFeedback ? " ✓ Updated!" : "";
+  const text = feedback
+    ? ` ✓ ${feedback}`
+    : linkFeedback
+      ? " ✓ Linked!"
+      : refreshFeedback
+        ? " ✓ Updated!"
+        : "";
   return (
     <Text color={theme.fgDim}>
       {" "}
@@ -153,7 +181,7 @@ export function DashboardFooter({
       {scanning && !hasScanned && (
         <Text color={theme.yellow}> (Scanning...)</Text>
       )}
-      {feedback && <Text color={theme.green}> {feedback}</Text>}
+      {text && <Text color={theme.green}> {text}</Text>}
     </Text>
   );
 }

@@ -28,6 +28,10 @@ export function buildRemovalPlan(
   skill: SkillInfo,
   config: AppConfig,
 ): RemovalPlan {
+  if (skill.isGhost) {
+    return { directories: [], ruleFiles: [], agentsBlocks: [] };
+  }
+
   const plan: RemovalPlan = {
     directories: [],
     ruleFiles: [],
@@ -79,7 +83,9 @@ export function buildFullRemovalPlan(
   config: AppConfig,
   options?: RemovalOptions,
 ): RemovalPlan {
-  const allMatching = allSkills.filter((s) => s.dirName === dirName);
+  const allMatching = allSkills.filter(
+    (s) => s.dirName === dirName && !s.isGhost,
+  );
   let matching = allMatching;
   if (options?.providerFilter) {
     matching = matching.filter((s) => s.provider === options.providerFilter);
